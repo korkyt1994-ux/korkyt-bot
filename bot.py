@@ -5,8 +5,13 @@ from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
 
 # --- КОНФИГУРАЦИЯ ---
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8163012748:AAHWr2d6sS1uhrRIHeRBc223Jr67ljKY-0U")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyA3S3xng4XjGuMP9_wDUIqattw8jEBfqTo")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+
+if not TELEGRAM_TOKEN:
+    raise ValueError("TELEGRAM_TOKEN қойылмаған!")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY қойылмаған!")
 
 # Gemini баптау
 genai.configure(api_key=GEMINI_API_KEY)
@@ -62,23 +67,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_text = update.message.text
 
-    # Пайдаланушы сессиясын жасау
     if user_id not in user_sessions:
         user_sessions[user_id] = model.start_chat(history=[])
 
     chat = user_sessions[user_id]
 
-    # Gemini-ге сұраныс жібер
     try:
         await context.bot.send_chat_action(
             chat_id=update.effective_chat.id,
             action="typing"
         )
-
         full_prompt = f"{TEACHER_INFO}\n\nОқушы/Ата-ана хабарламасы: {user_text}"
         response = chat.send_message(full_prompt)
         reply = response.text
-
         await update.message.reply_text(reply)
 
     except Exception as e:
@@ -89,11 +90,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- MAIN ---
 def main():
+    logger.info(f"Token: {TELEGRAM_TOKEN[:10]}...")
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     logger.info("Бот іске қосылды ✅")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
